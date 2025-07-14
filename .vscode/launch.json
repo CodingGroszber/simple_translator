@@ -1,0 +1,50 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'simple_translator_v2'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=simple_translator_v2",
+                    "--package=simple_translator_v2"
+                ],
+                "filter": {
+                    "name": "simple_translator_v2",
+                    "kind": "bin"
+                }
+            },
+            "args": [
+                "test/test_text_eng.md",
+                "--source-language",
+                "en",
+                "--target-language",
+                "ru"
+            ],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'simple_translator_v2'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=simple_translator_v2",
+                    "--package=simple_translator_v2"
+                ],
+                "filter": {
+                    "name": "simple_translator_v2",
+                    "kind": "bin"
+                }
+            },
+            "args": [
+                "test/test_text_eng.md"
+            ],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}
