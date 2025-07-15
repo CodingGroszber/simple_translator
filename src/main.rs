@@ -12,6 +12,17 @@ use file_handler::FileHandler;
 use language::detect_language;
 use translator::Translator;
 
+/// Pretty print macro for debugging
+#[allow(unused_macros)]
+macro_rules! debug_println {
+    ($($arg:tt)*) => {
+        #[cfg(debug_assertions)]
+        {
+            println!($($arg)*);
+        }
+    };
+}
+
 /// Command-line arguments for our translator app
 #[derive(Parser, Debug)]
 #[clap(
@@ -37,6 +48,8 @@ async fn main() -> Result<()> {
     // Parse command-line arguments
     let args = Args::parse();
 
+    // debug_println!("Aruments used:{:#?}\n", args);
+
     // Validate the input file exists and has the right extension
     if !args.file.exists() {
         return Err(anyhow::anyhow!("File not found: {:?}", args.file));
@@ -58,6 +71,8 @@ async fn main() -> Result<()> {
     // Create a file handler to read/write files
     let file_handler = FileHandler::new(&args.file);
     let content = file_handler.read().context("Failed to read file")?;
+
+    // debug_println!("{:#?}\n", content);
 
     // Determine source language - use provided value or detect
     let source_lang = if let Some(lang) = args.source_language {
@@ -82,6 +97,7 @@ async fn main() -> Result<()> {
 
     // Create translator and translate the content
     let translator = Translator::new();
+    // debug_println!("{:#?}\n", translator);
     let translated_text = translator
         .translate(&content, &source_lang, &target_lang)
         .await

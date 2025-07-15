@@ -22,18 +22,18 @@ pub fn detect_language(text: &str) -> Result<String> {
     Ok(iso_code.to_string())
 }
 
-/// Checks if the language pair is supported by our translator
-/// Currently we only support English-Russian and English-German pairs (both directions)
-#[allow(dead_code)]
-pub fn is_supported_pair(source: &str, target: &str) -> bool {
-    matches!(
-        (source, target),
-        ("en", "ru") | ("ru", "en") | ("en", "de") | ("de", "en")
-    )
-}
+// Checks if the language pair is supported by our translator
+// Currently we only support English-Russian and English-German pairs (both directions)
+// #[allow(dead_code)]
+// pub fn is_supported_pair(source: &str, target: &str) -> bool {
+//     matches!(
+//         (source, target),
+//         ("en", "ru") | ("ru", "en") | ("en", "de") | ("de", "en")
+//     )
+// }
 
-/// Returns all supported language codes
-#[allow(dead_code)]
-pub fn supported_languages() -> Vec<&'static str> {
-    vec!["en", "ru", "de"]
-}
+// Returns all supported language codes
+// #[allow(dead_code)]
+// pub fn supported_languages() -> Vec<&'static str> {
+//     vec!["en", "ru", "de"]
+// }
