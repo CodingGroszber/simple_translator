@@ -19,7 +19,8 @@ struct TranslationRequest {
 /// Response structure from LibreTranslate API
 #[derive(Deserialize)]
 struct TranslationResponse {
-    translatedText: String, // The translated text
+    #[serde(rename = "translatedText")]
+    translated_text: String, // The translated text
 }
 
 /// Main translator struct that handles API communication
@@ -87,6 +88,6 @@ impl Translator {
             .await
             .context("Failed to parse translation response")?;
 
-        Ok(translation.translatedText)
+        Ok(translation.translated_text)
     }
 }
