@@ -1,152 +1,71 @@
-use anyhow::{Context, Result};
+use anyhow::{Result, anyhow};
 use clap::Parser;
-use lingua::{Language, LanguageDetector, LanguageDetectorBuilder};
+use log::info;
+use rust_bert::pipelines::translation::{Language, TranslationModelBuilder};
 use std::fs;
-use std::path::Path;
-
-// Define supported languages
-#[derive(Debug, Clone, Copy)]
-enum SupportedLanguage {
-    English,
-    Russian,
-    German,
-}
-
-impl SupportedLanguage {
-    fn from_code(code: &str) -> Option<Self> {
-        match code {
-            "en" => Some(SupportedLanguage::English),
-            "ru" => Some(SupportedLanguage::Russian),
-            "de" => Some(SupportedLanguage::German),
-            _ => None,
-        }
-    }
-
-    fn to_code(&self) -> &'static str {
-        match self {
-            SupportedLanguage::English => "en",
-            SupportedLanguage::Russian => "ru",
-            SupportedLanguage::German => "de",
-        }
-    }
-
-    fn to_name(&self) -> &'static str {
-        match self {
-            SupportedLanguage::English => "English",
-            SupportedLanguage::Russian => "Russian",
-            SupportedLanguage::German => "German",
-        }
-    }
-}
 
 #[derive(Parser, Debug)]
-#[command(
-    author,
-    version,
-    about = "A markdown file language detector and translator"
-)]
+#[command(version, about = "A simple translator app using pre-trained MarianMT models", long_about = None)]
 struct Args {
-    /// Input markdown file path
-    #[arg(short, long)]
-    input_file: String,
-}
+    /// The text to translate
+    text: String,
 
-// Language detection function
-fn detect_language(text: &str) -> Result<SupportedLanguage> {
-    // Configure the detector with the languages we care about
-    let languages = vec![Language::English, Language::Russian, Language::German];
+    /// Source language (e.g., English)
+    #[arg(short = 's', long, default_value = "English")]
+    source: String,
 
-    let detector = LanguageDetectorBuilder::from_languages(&languages).build();
-
-    let detected = match detector.detect_language_of(text) {
-        Some(Language::English) => SupportedLanguage::English,
-        Some(Language::Russian) => SupportedLanguage::Russian,
-        Some(Language::German) => SupportedLanguage::German,
-        _ => {
-            println!("Warning: Language could not be confidently detected. Assuming English.");
-            SupportedLanguage::English
-        }
-    };
-
-    Ok(detected)
-}
-
-// This is a placeholder for the translation function
-// In the future, we'll implement actual translation here
-fn placeholder_translate(
-    text: &str,
-    source_lang: SupportedLanguage,
-    target_lang: SupportedLanguage,
-) -> Result<String> {
-    // For demonstration only - real implementation would go here
-
-    println!("FUTURE IMPLEMENTATION NOTE:");
-    println!("For actual translation, we would:");
-    println!(
-        "1. Load a translation model for {}-{}",
-        source_lang.to_code(),
-        target_lang.to_code()
-    );
-    println!("2. Process the text in chunks to preserve markdown structure");
-    println!("3. Return properly translated content");
-
-    // For now, we'll just add a note about the translation
-    let mut lines = Vec::new();
-
-    lines.push(format!(
-        "# Translation from {} to {}",
-        source_lang.to_name(),
-        target_lang.to_name()
-    ));
-    lines.push(String::new());
-    lines.push("*This is a placeholder for translation functionality.*".to_string());
-    lines.push(String::new());
-    lines.push("## Original text:".to_string());
-    lines.push(String::new());
-    lines.push(text.to_string());
-
-    Ok(lines.join("\n"))
-}
-
-// Function to determine target language based on source
-fn determine_target_language(source: SupportedLanguage) -> SupportedLanguage {
-    match source {
-        SupportedLanguage::English => SupportedLanguage::Russian, // Default to Russian
-        _ => SupportedLanguage::English, // For non-English, translate to English
-    }
+    /// Target language (e.g., French)
+    #[arg(short = 't', long, default_value = "French")]
+    target: String,
 }
 
 fn main() -> Result<()> {
-    // Parse command-line arguments
+    env_logger::init();
+
     let args = Args::parse();
 
-    // Read the source file
-    let content = fs::read_to_string(&args.input_file)
-        .context(format!("Failed to read input file: {}", args.input_file))?;
+    info!("Starting translation for text: '{}'", args.text);
 
-    // Detect language
-    let detected_lang = detect_language(&content)?;
-    println!("Detected language: {}", detected_lang.to_name());
+    // Set custom cache directory for rust-bert assets using std::env::current_dir
+    let project_dir = std::env::current_dir()
+        .map_err(|e| anyhow!("Could not determine project directory: {}", e))?;
+    let cache_dir = project_dir.join("assets");
+    fs::create_dir_all(&cache_dir)
+        .map_err(|e| anyhow!("Could not create assets directory: {}", e))?;
+    unsafe {
+        std::env::set_var("RUSTBERT_CACHE", &cache_dir);
+    }
 
-    // Determine target language
-    let target_lang = determine_target_language(detected_lang);
-    println!("Target language for translation: {}", target_lang.to_name());
+    info!("Set rust-bert cache directory to: {:?}", cache_dir);
 
-    // Use placeholder translation for now
-    let translated_content = placeholder_translate(&content, detected_lang, target_lang)?;
+    let source = language_from_str(&args.source)?;
+    let target = language_from_str(&args.target)?;
 
-    // Generate output filename
-    let input_path = Path::new(&args.input_file);
-    let file_stem = input_path.file_stem().unwrap().to_str().unwrap();
-    let parent = input_path.parent().unwrap_or(Path::new(""));
-    let output_filename = parent.join(format!("{}_translated.md", file_stem));
+    // Build the model for the specified language pair (downloads if needed)
+    let model = TranslationModelBuilder::new()
+        .with_source_languages(vec![source])
+        .with_target_languages(vec![target])
+        .create_model()?;
 
-    // Write translated content to file
-    fs::write(&output_filename, translated_content).context(format!(
-        "Failed to write to output file: {}",
-        output_filename.display()
-    ))?;
-    println!("Output saved to: {}", output_filename.display());
+    // Perform translation
+    let outputs = model.translate(&[&args.text], None, target)?;
+
+    println!("Translation: {}", outputs[0]);
 
     Ok(())
+}
+
+fn language_from_str(s: &str) -> Result<Language> {
+    match s.to_lowercase().as_str() {
+        "english" => Ok(Language::English),
+        "french" => Ok(Language::French),
+        "spanish" => Ok(Language::Spanish),
+        "italian" => Ok(Language::Italian),
+        "russian" => Ok(Language::Russian),
+        "german" => Ok(Language::German),
+        _ => Err(anyhow!(
+            "Unsupported language: {}. Supported: English, French, Spanish, Italian, Russian, German",
+            s
+        )),
+    }
 }
