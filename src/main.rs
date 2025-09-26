@@ -2,41 +2,52 @@ use anyhow::{Result, anyhow};
 use clap::Parser;
 use log::info;
 use rust_bert::pipelines::translation::{Language, TranslationModelBuilder};
-use std::fs;
+use std::{fs, path::PathBuf};
 
 #[derive(Parser, Debug)]
 #[command(version, about = "A simple translator app using pre-trained MarianMT models", long_about = None)]
 struct Args {
     /// The text to translate
+    #[arg(required = true)]
     text: String,
 
-    /// Source language (e.g., English)
-    #[arg(short = 's', long, default_value = "English")]
+    /// Source language (e.g., en)
+    #[arg(short = 's', long, default_value = "en")]
     source: String,
 
-    /// Target language (e.g., French)
-    #[arg(short = 't', long, default_value = "French")]
+    /// Target language (e.g., fr)
+    #[arg(short = 't', long, default_value = "fr")]
     target: String,
+
+    /// Reset any cached models or configurations
+    #[arg(long)]
+    reset: bool,
 }
 
 fn main() -> Result<()> {
     env_logger::init();
-
     let args = Args::parse();
+    let project_dir: PathBuf = std::env::current_dir()?;
+    let assets_dir: PathBuf = project_dir.join("assets");
 
-    info!("Starting translation for text: '{}'", args.text);
-
-    // Set custom cache directory for rust-bert assets using std::env::current_dir
-    let project_dir = std::env::current_dir()
-        .map_err(|e| anyhow!("Could not determine project directory: {}", e))?;
-    let cache_dir = project_dir.join("assets");
-    fs::create_dir_all(&cache_dir)
-        .map_err(|e| anyhow!("Could not create assets directory: {}", e))?;
-    unsafe {
-        std::env::set_var("RUSTBERT_CACHE", &cache_dir);
+    match set_environment(&assets_dir) {
+        Ok(()) => {
+            println!("Environment set successfully!");
+        }
+        Err(e) => {
+            eprintln!("Error setting environment: {}", e);
+            std::process::exit(1);
+        }
     }
 
-    info!("Set rust-bert cache directory to: {:?}", cache_dir);
+    if args.reset {
+        match reset_assets_directory(&assets_dir) {
+            Ok(()) => println!("Successfully reset assets directory"),
+            Err(e) => eprintln!("Failed to reset assets directory: {}", e),
+        }
+    }
+
+    info!("Starting translation for text: '{}'", args.text);
 
     let source = language_from_str(&args.source)?;
     let target = language_from_str(&args.target)?;
@@ -55,17 +66,40 @@ fn main() -> Result<()> {
     Ok(())
 }
 
+fn set_environment(assets_dir: &PathBuf) -> Result<()> {
+    // Set custom cache directory for rust-bert assets using std::env::current_dir
+    fs::create_dir_all(&assets_dir)?;
+    unsafe {
+        std::env::set_var("RUSTBERT_CACHE", &assets_dir);
+    }
+
+    log::info!("Set rust-bert cache directory to: {:?}", assets_dir);
+
+    Ok(())
+}
+
+fn reset_assets_directory(assets_dir: &PathBuf) -> std::io::Result<()> {
+    // Remove the entire 'assets' directory if it exists
+    if assets_dir.exists() {
+        fs::remove_dir_all(&assets_dir)?;
+    }
+
+    // Recreate an empty 'assets' directory
+    fs::create_dir(&assets_dir)?;
+
+    println!("Reset: 'assets' directory cleared.");
+    Ok(())
+}
+
 fn language_from_str(s: &str) -> Result<Language> {
     match s.to_lowercase().as_str() {
-        "english" => Ok(Language::English),
-        "french" => Ok(Language::French),
-        "spanish" => Ok(Language::Spanish),
-        "italian" => Ok(Language::Italian),
-        "russian" => Ok(Language::Russian),
-        "german" => Ok(Language::German),
-        _ => Err(anyhow!(
-            "Unsupported language: {}. Supported: English, French, Spanish, Italian, Russian, German",
-            s
-        )),
+        "en" => Ok(Language::English),
+        "fr" => Ok(Language::French),
+        "es" => Ok(Language::Spanish),
+        "it" => Ok(Language::Italian),
+        "ru" => Ok(Language::Russian),
+        "ge" => Ok(Language::German),
+        "hu" => Ok(Language::Hungarian), // Todo: Hungarian uses facebook/m2m100_418M, not Helsinki-NLP/opus-mt-en-hu
+        _ => Err(anyhow!("Unsupported language: {}.", s)),
     }
 }
